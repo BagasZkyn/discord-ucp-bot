@@ -1,0 +1,114 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            output: botucp-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            output: botucp-windows-arm64.exe
+          - goos: linux
+            goarch: amd64
+            output: botucp-linux-amd64
+          - goos: linux
+            goarch: arm64
+            output: botucp-linux-arm64
+          - goos: linux
+            goarch: arm
+            goarm: "7"
+            output: botucp-linux-arm
+          - goos: darwin
+            goarch: amd64
+            output: botucp-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            output: botucp-darwin-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+          CGO_ENABLED: "0"
+        run: |
+          go build -ldflags="-s -w" -trimpath -o dist/${{ matrix.output }} ./cmd/bot
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: dist/${{ matrix.output }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List dist
+        run: ls -lh dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Release ${{ github.ref_name }}"
+          body: |
+            ## discord-ucp-bot ${{ github.ref_name }}
+
+            ### Download
+
+            Pick the binary for your platform:
+
+            | Platform | Architecture | File |
+            |----------|-------------|------|
+            | Windows | x86-64 | `botucp-windows-amd64.exe` |
+            | Windows | ARM64 | `botucp-windows-arm64.exe` |
+            | Linux | x86-64 | `botucp-linux-amd64` |
+            | Linux | ARM64 | `botucp-linux-arm64` |
+            | Linux | ARMv7 | `botucp-linux-arm` |
+            | macOS | x86-64 | `botucp-darwin-amd64` |
+            | macOS | Apple Silicon | `botucp-darwin-arm64` |
+
+            ### Setup
+
+            1. Download the binary for your platform
+            2. Copy `.env.example` → `.env` and fill in your values
+            3. Run the binary
+
+            See [README](https://github.com/${{ github.repository }}#readme) for full documentation.
+          files: dist/*
+          draft: false
+          prerelease: false
