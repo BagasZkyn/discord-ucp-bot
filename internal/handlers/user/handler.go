@@ -27,14 +27,52 @@ func (h *Handler) embed(title, description string, color int, fields ...*utils.E
 	return utils.BuildEmbed(h.cfg.LogoURL, h.cfg.ServerName, title, description, color, fields)
 }
 
-// hasAdminAccess mengecek apakah user ID ada di daftar ADMIN_USER_IDS
+// hasAdminAccess mengecek apakah user boleh pakai !panel.
+// Prioritas:
+//  1. Jika ADMIN_USER_IDS diset di .env → hanya user ID tersebut yang boleh
+//  2. Jika ADMIN_USER_IDS kosong → fallback ke cek permission Administrator/ManageServer di guild
 func (h *Handler) hasAdminAccess(s *discordgo.Session, m *discordgo.MessageCreate) bool {
-	for _, id := range h.cfg.AdminUserIDs {
-		if id == m.Author.ID {
-			return true
+	// Prioritas 1: whitelist user ID
+	if len(h.cfg.AdminUserIDs) > 0 {
+		for _, id := range h.cfg.AdminUserIDs {
+			if id == m.Author.ID {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Prioritas 2 (fallback): cek permission guild via API
+	guild, err := s.Guild(m.GuildID)
+	if err != nil {
+		log.Printf("⚠️  Gagal fetch guild untuk cek permission: %v", err)
+		return false
+	}
+
+	// Guild owner selalu boleh
+	if guild.OwnerID == m.Author.ID {
+		return true
+	}
+
+	member, err := s.GuildMember(m.GuildID, m.Author.ID)
+	if err != nil {
+		log.Printf("⚠️  Gagal fetch member untuk cek permission: %v", err)
+		return false
+	}
+
+	// Hitung total permission dari semua role yang dimiliki member
+	var totalPerms int64
+	for _, memberRoleID := range member.Roles {
+		for _, guildRole := range guild.Roles {
+			if guildRole.ID == memberRoleID {
+				totalPerms |= int64(guildRole.Permissions)
+				break
+			}
 		}
 	}
-	return false
+
+	return totalPerms&int64(discordgo.PermissionAdministrator) != 0 ||
+		totalPerms&int64(discordgo.PermissionManageServer) != 0
 }
 
 // ─────────────────────────────────────────
