@@ -1,13 +1,16 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 // Config menyimpan semua konfigurasi aplikasi
 type Config struct {
 	// Discord
 	DiscordToken string
 	UCPRoleID    string
-	AdminRoleID  string
+	AdminUserIDs []string
 
 	// Server
 	ServerName string
@@ -30,7 +33,7 @@ func Load() *Config {
 	return &Config{
 		DiscordToken: getEnv("DISCORD_TOKEN", ""),
 		UCPRoleID:    getEnv("UCP_ROLE_ID", ""),
-		AdminRoleID:  getEnv("ADMIN_ROLE_ID", ""),
+		AdminUserIDs: splitEnv("ADMIN_USER_IDS"),
 
 		ServerName: getEnv("SERVER_NAME", "Djava Roleplay"),
 		LogoURL:    getEnv("LOGO_URL", "https://cdn.discordapp.com/attachments/1153557595928408163/1497964536093868174/Untitled_design.png"),
@@ -51,4 +54,20 @@ func getEnv(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+// splitEnv membaca env variable berisi daftar ID dipisah koma
+func splitEnv(key string) []string {
+	val := os.Getenv(key)
+	if val == "" {
+		return nil
+	}
+	parts := strings.Split(val, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

@@ -27,53 +27,14 @@ func (h *Handler) embed(title, description string, color int, fields ...*utils.E
 	return utils.BuildEmbed(h.cfg.LogoURL, h.cfg.ServerName, title, description, color, fields)
 }
 
-// hasAdminAccess mengecek apakah user punya akses admin:
-// 1. Punya AdminRoleID yang dikonfigurasi di .env, atau
-// 2. Punya permission ManageServer di Discord (fallback)
+// hasAdminAccess mengecek apakah user ID ada di daftar ADMIN_USER_IDS
 func (h *Handler) hasAdminAccess(s *discordgo.Session, m *discordgo.MessageCreate) bool {
-	// Jika AdminRoleID dikonfigurasi, cek role member
-	if h.cfg.AdminRoleID != "" {
-		member, err := s.GuildMember(m.GuildID, m.Author.ID)
-		if err == nil {
-			for _, roleID := range member.Roles {
-				if roleID == h.cfg.AdminRoleID {
-					return true
-				}
-			}
-		}
-		// AdminRoleID dikonfigurasi tapi user tidak punya role tersebut
-		return false
-	}
-
-	// Fallback: cek permission ManageServer via API (bukan state cache)
-	member, err := s.GuildMember(m.GuildID, m.Author.ID)
-	if err != nil {
-		return false
-	}
-
-	guild, err := s.Guild(m.GuildID)
-	if err != nil {
-		return false
-	}
-
-	// Owner selalu punya akses
-	if guild.OwnerID == m.Author.ID {
-		return true
-	}
-
-	// Hitung permission dari semua role yang dimiliki member
-	var totalPerms int64
-	for _, memberRoleID := range member.Roles {
-		for _, guildRole := range guild.Roles {
-			if guildRole.ID == memberRoleID {
-				totalPerms |= int64(guildRole.Permissions)
-				break
-			}
+	for _, id := range h.cfg.AdminUserIDs {
+		if id == m.Author.ID {
+			return true
 		}
 	}
-
-	return totalPerms&int64(discordgo.PermissionManageServer) != 0 ||
-		totalPerms&int64(discordgo.PermissionAdministrator) != 0
+	return false
 }
 
 // ─────────────────────────────────────────
