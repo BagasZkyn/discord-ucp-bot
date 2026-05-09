@@ -32,7 +32,6 @@ func (h *Handler) embed(title, description string, color int, fields ...*utils.E
 //  1. Jika ADMIN_USER_IDS diset di .env → hanya user ID tersebut yang boleh
 //  2. Jika ADMIN_USER_IDS kosong → fallback ke cek permission Administrator/ManageServer di guild
 func (h *Handler) hasAdminAccess(s *discordgo.Session, m *discordgo.MessageCreate) bool {
-	// Prioritas 1: whitelist user ID
 	if len(h.cfg.AdminUserIDs) > 0 {
 		for _, id := range h.cfg.AdminUserIDs {
 			if id == m.Author.ID {
@@ -42,14 +41,12 @@ func (h *Handler) hasAdminAccess(s *discordgo.Session, m *discordgo.MessageCreat
 		return false
 	}
 
-	// Prioritas 2 (fallback): cek permission guild via API
 	guild, err := s.Guild(m.GuildID)
 	if err != nil {
 		log.Printf("⚠️  Gagal fetch guild untuk cek permission: %v", err)
 		return false
 	}
 
-	// Guild owner selalu boleh
 	if guild.OwnerID == m.Author.ID {
 		return true
 	}
@@ -60,7 +57,6 @@ func (h *Handler) hasAdminAccess(s *discordgo.Session, m *discordgo.MessageCreat
 		return false
 	}
 
-	// Hitung total permission dari semua role yang dimiliki member
 	var totalPerms int64
 	for _, memberRoleID := range member.Roles {
 		for _, guildRole := range guild.Roles {
@@ -79,13 +75,11 @@ func (h *Handler) hasAdminAccess(s *discordgo.Session, m *discordgo.MessageCreat
 //  !panel command
 // ─────────────────────────────────────────
 
-// HandlePanelCommand menangani perintah !panel
 func (h *Handler) HandlePanelCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// Cek permission: harus punya AdminRoleID atau PermissionManageServer
 	if !h.hasAdminAccess(s, m) {
 		s.ChannelMessageSendEmbed(m.ChannelID, h.embed(
-			"「 ⛔ 」Akses Ditolak",
-			"Otorisasi tidak mencukupi untuk mengeksekusi perintah ini.",
+			"Akses Ditolak",
+			"Kamu tidak memiliki izin untuk menjalankan perintah ini.",
 			utils.ColorError,
 		))
 		return
@@ -96,7 +90,6 @@ func (h *Handler) HandlePanelCommand(s *discordgo.Session, m *discordgo.MessageC
 
 	var panelMsgID string
 
-	// Coba edit pesan lama
 	if cfg.UCPPanelChannelID != "" && cfg.UCPPanelMessageID != "" {
 		_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 			Channel:    cfg.UCPPanelChannelID,
@@ -106,11 +99,10 @@ func (h *Handler) HandlePanelCommand(s *discordgo.Session, m *discordgo.MessageC
 		})
 		if err == nil {
 			panelMsgID = cfg.UCPPanelMessageID
-			log.Printf("🟢  UCP Panel di-refresh (edit) — %s", panelMsgID)
+			log.Printf("🟢  UCP Panel di-refresh — %s", panelMsgID)
 		}
 	}
 
-	// Kirim pesan baru jika belum ada atau gagal edit
 	if panelMsgID == "" {
 		msg, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
 			Embeds:     panelData.Embeds,
@@ -144,35 +136,30 @@ func buildPanel(cfg *config.Config) panelPayload {
 	embed := &discordgo.MessageEmbed{
 		Color: utils.ColorPrimary,
 		Author: &discordgo.MessageEmbedAuthor{
-			Name:    "SERVER MANAGEMENT SYSTEM",
+			Name:    cfg.ServerName + " — User Control Panel",
 			IconURL: cfg.LogoURL,
 		},
-		Title: "💠 USER CONTROL PANEL",
-		Description: "Selamat datang di **" + cfg.ServerName + "** Control Panel.\n" +
-			"Panel ini berfungsi sebagai pusat kontrol akun in-game Anda secara real-time. Gunakan menu interaktif di bawah ini untuk mengelola data Anda dengan aman.\n\n" +
-			"```ansi\n\u001b[1;32m✓ SYSTEM ONLINE & SECURED\u001b[0m\n```",
+		Title:       "Selamat Datang",
+		Description: "Kelola akun in-game kamu melalui panel di bawah ini.\nSemua perubahan berlaku secara langsung.",
 		Fields: []*discordgo.MessageEmbedField{
 			{
-				Name: "✨ \u200b \u200bLayanan Tersedia",
-				Value: "**[ 📝 ] Daftar UCP**\n└ Buat identitas baru untuk memulai petualanganmu.\n\n" +
-					"**[ 🔄 ] Sync Role**\n└ Hubungkan otorisasi Discord ke akun in-game.\n\n" +
-					"**[ 📊 ] Cek Status**\n└ Lihat informasi detail mengenai akunmu saat ini.\n\n" +
-					"**[ 📨 ] Resend PIN**\n└ Dapatkan kembali PIN rahasia via Direct Message.\n\n" +
-					"**[ 🔑 ] Reset Password**\n└ Atur ulang kata sandimu jika kamu melupakannya.",
+				Name: "Layanan",
+				Value: "📝 **Daftar UCP** — Buat akun baru\n" +
+					"🔄 **Sync Role** — Pulihkan role Discord\n" +
+					"📊 **Cek Status** — Lihat info akunmu\n" +
+					"📨 **Resend PIN** — Kirim ulang PIN via DM\n" +
+					"🔑 **Reset Password** — Ganti password akun",
 				Inline: false,
 			},
 			{
-				Name: "🛡️ \u200b \u200bProtokol Keamanan",
-				Value: ">>> **1.** Nama identitas hanya boleh terdiri dari huruf & angka.\n" +
-					"**2.** Panjang karakter minimal **3** hingga maksimal **20** digit.\n" +
-					"**3.** Satu akun Discord hanya dapat memiliki **satu** identitas UCP.\n" +
-					"**4.** Tidak diperbolehkan menggunakan spasi atau simbol khusus (`_`).",
+				Name: "Ketentuan",
+				Value: "Username hanya boleh huruf dan angka, 3–20 karakter, tanpa spasi atau simbol.",
 				Inline: false,
 			},
 		},
-		Image: &discordgo.MessageEmbedImage{URL: cfg.LogoURL},
+		Thumbnail: &discordgo.MessageEmbedThumbnail{URL: cfg.LogoURL},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text:    cfg.ServerName + " © 2026 • Protected by Security System",
+			Text:    cfg.ServerName,
 			IconURL: cfg.LogoURL,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),

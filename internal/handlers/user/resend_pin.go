@@ -28,15 +28,14 @@ func (h *Handler) HandleResendPINButton(s *discordgo.Session, i *discordgo.Inter
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Akun Tidak Ditemukan",
-					"> Discord ID Anda tidak terdaftar di sistem.\n> Silakan lakukan **REGISTRASI UCP** terlebih dahulu.",
+				h.embed("Akun Tidak Ditemukan",
+					"Discord kamu belum terdaftar. Silakan daftar UCP terlebih dahulu.",
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Generate PIN baru
 	newPIN := utils.GeneratePIN()
 
 	_, err = h.db.Exec("UPDATE `ucp` SET `verifycode` = ? WHERE `DiscordID` = ?", newPIN, discordID)
@@ -44,21 +43,20 @@ func (h *Handler) HandleResendPINButton(s *discordgo.Session, i *discordgo.Inter
 		log.Printf("❌ Gagal update PIN: %v", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Error Database",
-					"Terjadi kegagalan komunikasi dengan server database.",
+				h.embed("Gagal Update PIN",
+					"Terjadi kesalahan pada database. Coba lagi nanti.",
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Kirim PIN via DM
 	ch, err := s.UserChannelCreate(discordID)
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ⚠️ 」DM Tertutup",
-					"> PIN baru telah digenerate namun gagal dikirim via DM.\n> Buka DM Anda lalu coba lagi.",
+				h.embed("DM Tidak Bisa Dibuka",
+					"PIN baru sudah dibuat tapi gagal dikirim. Buka DM kamu lalu coba lagi.",
 					utils.ColorWarning),
 			},
 		})
@@ -66,19 +64,16 @@ func (h *Handler) HandleResendPINButton(s *discordgo.Session, i *discordgo.Inter
 	}
 
 	dmEmbed := &discordgo.MessageEmbed{
-		Color: utils.ColorPrimary,
-		Author: &discordgo.MessageEmbedAuthor{
-			Name: "[ DJAVA ROLEPLAY - ENCRYPTED TRANSMISSION ]",
-		},
-		Title:       "「 🔐 」PIN BARU DITERBITKAN",
-		Description: fmt.Sprintf("PIN baru telah digenerate untuk identitas **%s**.\nGunakan PIN ini untuk autentikasi in-game.", ucpName),
+		Color:       utils.ColorPrimary,
+		Title:       "PIN Baru",
+		Description: fmt.Sprintf("PIN baru untuk akun **%s** sudah diterbitkan.", ucpName),
 		Fields: []*discordgo.MessageEmbedField{
-			{Name: "IDENTITAS", Value: fmt.Sprintf("```bash\n\"%s\"\n```", ucpName), Inline: false},
-			{Name: "PIN BARU", Value: fmt.Sprintf("```diff\n+ %d +\n```", newPIN), Inline: false},
-			{Name: "⚠️ PERINGATAN", Value: "> **JAGA KERAHASIAAN PIN INI!**\n> Staf tidak akan pernah meminta kode ini.", Inline: false},
+			{Name: "Username", Value: fmt.Sprintf("`%s`", ucpName), Inline: true},
+			{Name: "PIN Baru", Value: fmt.Sprintf("`%d`", newPIN), Inline: true},
+			{Name: "Peringatan", Value: "Jangan bagikan PIN ini ke siapapun.", Inline: false},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text:    "Djava Secure Node",
+			Text:    h.cfg.ServerName,
 			IconURL: h.cfg.LogoURL,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),
@@ -88,8 +83,8 @@ func (h *Handler) HandleResendPINButton(s *discordgo.Session, i *discordgo.Inter
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ⚠️ 」DM Tertutup",
-					"> PIN baru telah digenerate namun gagal dikirim via DM.\n> Buka DM Anda lalu coba lagi.",
+				h.embed("DM Tidak Bisa Dibuka",
+					"PIN baru sudah dibuat tapi gagal dikirim. Buka DM kamu lalu coba lagi.",
 					utils.ColorWarning),
 			},
 		})
@@ -98,8 +93,8 @@ func (h *Handler) HandleResendPINButton(s *discordgo.Session, i *discordgo.Inter
 
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{
-			h.embed("「 ✅ 」PIN Berhasil Dikirim",
-				fmt.Sprintf("> PIN baru untuk **`%s`** telah dikirim ke DM Anda. 📬", ucpName),
+			h.embed("PIN Terkirim",
+				fmt.Sprintf("PIN baru untuk **%s** sudah dikirim ke DM kamu.", ucpName),
 				utils.ColorSuccess),
 		},
 	})

@@ -6,13 +6,13 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// Warna tema
+// Warna tema — palette bersih & modern
 const (
-	ColorPrimary = 0x2b2d31
-	ColorSuccess = 0x57F287
-	ColorError   = 0xED4245
-	ColorWarning = 0xFEE75C
-	ColorInfo    = 0x5865F2
+	ColorPrimary = 0x5865F2 // Blurple Discord
+	ColorSuccess = 0x57F287 // Hijau
+	ColorError   = 0xED4245 // Merah
+	ColorWarning = 0xFEE75C // Kuning
+	ColorInfo    = 0x2b2d31 // Dark neutral
 )
 
 // EmbedField adalah shorthand untuk discordgo.MessageEmbedField
@@ -25,7 +25,7 @@ func BuildEmbed(logoURL, serverName, title, description string, color int, field
 		Title:       title,
 		Description: description,
 		Footer: &discordgo.MessageEmbedFooter{
-			Text:    serverName + " Management System",
+			Text:    serverName,
 			IconURL: logoURL,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),

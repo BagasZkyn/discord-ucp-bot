@@ -23,8 +23,8 @@ func (h *Handler) HandleSyncRoleButton(s *discordgo.Session, i *discordgo.Intera
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Sinkronisasi Gagal",
-					"> Identitas Discord tidak ditemukan dalam arsip database.\n> Silakan lakukan registrasi terlebih dahulu.",
+				h.embed("Akun Tidak Ditemukan",
+					"Discord kamu belum terdaftar. Silakan daftar UCP terlebih dahulu.",
 					utils.ColorError),
 			},
 		})
@@ -34,21 +34,20 @@ func (h *Handler) HandleSyncRoleButton(s *discordgo.Session, i *discordgo.Intera
 	if h.cfg.UCPRoleID == "" {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ⚠️ 」System Error",
-					"> Role UCP tidak terdeteksi. Hubungi Administrator.",
+				h.embed("Konfigurasi Tidak Lengkap",
+					"Role UCP belum dikonfigurasi. Hubungi administrator.",
 					utils.ColorWarning),
 			},
 		})
 		return
 	}
 
-	// Cek apakah sudah punya role
 	for _, roleID := range i.Member.Roles {
 		if roleID == h.cfg.UCPRoleID {
 			s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 				Embeds: &[]*discordgo.MessageEmbed{
-					h.embed("「 ℹ️ 」Informasi Sistem",
-						fmt.Sprintf("> Sinkronisasi tidak diperlukan.\n> Anda sudah memiliki otorisasi <@&%s>.", h.cfg.UCPRoleID),
+					h.embed("Role Sudah Aktif",
+						fmt.Sprintf("Kamu sudah memiliki role <@&%s>.", h.cfg.UCPRoleID),
 						utils.ColorInfo),
 				},
 			})
@@ -56,13 +55,12 @@ func (h *Handler) HandleSyncRoleButton(s *discordgo.Session, i *discordgo.Intera
 		}
 	}
 
-	// Berikan role
 	if err := s.GuildMemberRoleAdd(i.GuildID, discordID, h.cfg.UCPRoleID); err != nil {
 		log.Printf("❌ Gagal berikan role: %v", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Error",
-					"> Gagal memberikan role. Hubungi Administrator.",
+				h.embed("Gagal Sync Role",
+					"Tidak bisa memberikan role. Hubungi administrator.",
 					utils.ColorError),
 			},
 		})
@@ -72,12 +70,12 @@ func (h *Handler) HandleSyncRoleButton(s *discordgo.Session, i *discordgo.Intera
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{
 			utils.BuildEmbed(h.cfg.LogoURL, h.cfg.ServerName,
-				"「 ✅ 」Sinkronisasi Berhasil",
-				fmt.Sprintf("> Otorisasi <@&%s> telah dikembalikan ke akun Anda.", h.cfg.UCPRoleID),
+				"Sync Role Berhasil",
+				fmt.Sprintf("Role <@&%s> berhasil diberikan kembali.", h.cfg.UCPRoleID),
 				utils.ColorSuccess,
 				[]*utils.EmbedField{
-					utils.Field("👤 Identitas UCP", fmt.Sprintf("`%s`", ucpName), true),
-					utils.Field("🎭 Role", fmt.Sprintf("<@&%s>", h.cfg.UCPRoleID), true),
+					utils.Field("Username", fmt.Sprintf("`%s`", ucpName), true),
+					utils.Field("Role", fmt.Sprintf("<@&%s>", h.cfg.UCPRoleID), true),
 				}),
 		},
 	})

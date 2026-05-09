@@ -27,15 +27,14 @@ func (h *Handler) HandleCheckStatusButton(s *discordgo.Session, i *discordgo.Int
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 🔍 」Status: Unknown",
-					"> Identitas tidak terdaftar di sistem.\n> Silakan klik **REGISTRASI UCP** untuk memulai.",
+				h.embed("Akun Tidak Ditemukan",
+					"Discord kamu belum terdaftar. Klik **Daftar UCP** untuk membuat akun.",
 					utils.ColorWarning),
 			},
 		})
 		return
 	}
 
-	// Cek apakah punya role
 	hasRole := false
 	for _, roleID := range i.Member.Roles {
 		if roleID == h.cfg.UCPRoleID {
@@ -44,21 +43,27 @@ func (h *Handler) HandleCheckStatusButton(s *discordgo.Session, i *discordgo.Int
 		}
 	}
 
-	authStatus := "❌ **Dicabut**"
+	roleStatus := "Tidak aktif"
 	if hasRole {
-		authStatus = "✅ **Terverifikasi**"
+		roleStatus = "Aktif"
+	}
+
+	adminStr := "—"
+	if adminLevel > 0 {
+		adminStr = fmt.Sprintf("Level %d", adminLevel)
 	}
 
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{
 			utils.BuildEmbed(h.cfg.LogoURL, h.cfg.ServerName,
-				"「 🔍 」Diagnostic Data",
-				"> Berikut adalah rekam data digital Anda saat ini.",
+				"Status Akun",
+				"Informasi akun UCP kamu.",
 				utils.ColorPrimary,
 				[]*utils.EmbedField{
-					utils.Field("🏷️ UCP", fmt.Sprintf("`%s`", ucpName), true),
-					utils.Field("🎭 Otorisasi", authStatus, true),
-					utils.Field("🆔 Node ID", fmt.Sprintf("`%s`", discordID), false),
+					utils.Field("Username", fmt.Sprintf("`%s`", ucpName), true),
+					utils.Field("Role", roleStatus, true),
+					utils.Field("Admin", adminStr, true),
+					utils.Field("Discord ID", fmt.Sprintf("`%s`", discordID), false),
 				}),
 		},
 	})

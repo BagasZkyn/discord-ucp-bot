@@ -16,13 +16,13 @@ func (h *Handler) HandleRegisterButton(s *discordgo.Session, i *discordgo.Intera
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
 			CustomID: "modal_register",
-			Title:    "📋 Terminal Registrasi",
+			Title:    "Daftar UCP",
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
 						discordgo.TextInput{
 							CustomID:    "input_ucp",
-							Label:       "Identitas UCP (Username)",
+							Label:       "Username",
 							Style:       discordgo.TextInputShort,
 							Placeholder: "Contoh: BagasDjava, ZeroCool99",
 							MinLength:   3,
@@ -41,59 +41,52 @@ func (h *Handler) HandleRegisterButton(s *discordgo.Session, i *discordgo.Intera
 
 // HandleRegisterModal memproses submit modal registrasi
 func (h *Handler) HandleRegisterModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// Defer reply ephemeral
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Flags: discordgo.MessageFlagsEphemeral,
-		},
+		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsEphemeral},
 	})
 
 	data := i.ModalSubmitData()
 	ucpName := getModalField(data, "input_ucp")
 	discordID := i.Member.User.ID
 
-	// Validasi format UCP
 	if !utils.IsValidUCP(ucpName) {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ⛔ 」Validasi Ditolak",
-					"> Input identitas melanggar protokol keamanan!\n\n**Parameter yang Diizinkan:**\n> • Hanya karakter alfabet & numerik.\n> • Tanpa spasi atau simbol khusus (_).\n> • Panjang 3-20 karakter.",
+				h.embed("Username Tidak Valid",
+					"Username hanya boleh huruf dan angka, 3–20 karakter, tanpa spasi atau simbol.",
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Cek username sudah ada
 	var existing string
 	err := h.db.QueryRow("SELECT `username` FROM `ucp` WHERE `username` = ? LIMIT 1", ucpName).Scan(&existing)
 	if err == nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Identitas Duplikat",
-					fmt.Sprintf("> Identitas **`%s`** telah diregistrasi oleh entitas lain.\n> Gunakan kombinasi nama alternatif.", ucpName),
+				h.embed("Username Sudah Dipakai",
+					fmt.Sprintf("Username **%s** sudah terdaftar. Coba nama lain.", ucpName),
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Cek Discord ID sudah terdaftar
 	var existingUCP string
 	err = h.db.QueryRow("SELECT `username` FROM `ucp` WHERE `DiscordID` = ? LIMIT 1", discordID).Scan(&existingUCP)
 	if err == nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Akses Terbatas",
-					fmt.Sprintf("> Node Discord ini telah dikaitkan dengan identitas: **`%s`**.\n> Tidak dapat mendaftar lagi.", existingUCP),
+				h.embed("Akun Sudah Ada",
+					fmt.Sprintf("Discord kamu sudah terhubung ke akun **%s**.", existingUCP),
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Generate verify code dan insert ke database
 	verifyCode := utils.GeneratePIN()
 	registerDate := time.Now().Unix()
 
@@ -105,41 +98,37 @@ func (h *Handler) HandleRegisterModal(s *discordgo.Session, i *discordgo.Interac
 		log.Printf("❌ Gagal insert UCP: %v", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Critical Error",
-					fmt.Sprintf("Fatal system exception:\n```%v```", err),
+				h.embed("Gagal Mendaftar",
+					"Terjadi kesalahan pada database. Coba lagi nanti.",
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Berikan role UCP
 	roleGiven := false
 	if h.cfg.UCPRoleID != "" && i.Member != nil {
 		err := s.GuildMemberRoleAdd(i.GuildID, discordID, h.cfg.UCPRoleID)
 		roleGiven = err == nil
 	}
 
-	// Kirim PIN via DM
 	dmSent := h.sendPINDM(s, i.Member.User, ucpName, verifyCode)
 
-	// Buat pesan status role
-	roleStatus := "⚠️ Gagal memberikan otorisasi."
+	roleStatus := "Role gagal diberikan, hubungi admin."
 	if roleGiven {
-		roleStatus = fmt.Sprintf("✅ Otorisasi <@&%s> diberikan.", h.cfg.UCPRoleID)
+		roleStatus = fmt.Sprintf("Role <@&%s> berhasil diberikan.", h.cfg.UCPRoleID)
 	}
 
-	dmStatus := ""
+	desc := fmt.Sprintf("Akun **%s** berhasil dibuat.\n\n%s", ucpName, roleStatus)
 	if !dmSent {
-		dmStatus = "\n> ⚠️ Gagal kirim DM — buka DM Anda lalu gunakan **Resend PIN**."
+		desc += "\n\nGagal kirim PIN via DM — buka DM kamu lalu gunakan **Resend PIN**."
+	} else {
+		desc += "\n\nPIN dikirim ke DM kamu."
 	}
 
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{
-			h.embed("「 ✅ 」Registrasi Diterima",
-				fmt.Sprintf("> Identitas **`%s`** sukses masuk ke dalam sistem. 🟢\n\n> 📬 Cek **Direct Message (DM)** Anda untuk melihat Token Autentikasi.\n> %s%s",
-					ucpName, roleStatus, dmStatus),
-				utils.ColorSuccess),
+			h.embed("Registrasi Berhasil", desc, utils.ColorSuccess),
 		},
 	})
 }
@@ -152,19 +141,16 @@ func (h *Handler) sendPINDM(s *discordgo.Session, user *discordgo.User, ucpName 
 	}
 
 	dmEmbed := &discordgo.MessageEmbed{
-		Color: utils.ColorPrimary,
-		Author: &discordgo.MessageEmbedAuthor{
-			Name: "[ DJAVA ROLEPLAY - ENCRYPTED TRANSMISSION ]",
-		},
-		Title:       "「 🔐 」SECURITY CLEARANCE",
-		Description: fmt.Sprintf("Sistem telah menerbitkan token akses untuk identitas **%s**.\nSilakan gunakan token di bawah ini untuk autentikasi in-game.", ucpName),
+		Color:       utils.ColorPrimary,
+		Title:       "PIN Akun UCP",
+		Description: fmt.Sprintf("Berikut PIN untuk akun **%s**.\nGunakan saat login in-game.", ucpName),
 		Fields: []*discordgo.MessageEmbedField{
-			{Name: "IDENTITAS", Value: fmt.Sprintf("```bash\n\"%s\"\n```", ucpName), Inline: false},
-			{Name: "TOKEN AUTENTIKASI", Value: fmt.Sprintf("```diff\n+ %d +\n```", pin), Inline: false},
-			{Name: "⚠️ PERINGATAN", Value: "> **JAGA KERAHASIAAN TOKEN INI!**\n> Staf tidak akan pernah meminta kode ini.", Inline: false},
+			{Name: "Username", Value: fmt.Sprintf("`%s`", ucpName), Inline: true},
+			{Name: "PIN", Value: fmt.Sprintf("`%d`", pin), Inline: true},
+			{Name: "Peringatan", Value: "Jangan bagikan PIN ini ke siapapun.", Inline: false},
 		},
 		Footer: &discordgo.MessageEmbedFooter{
-			Text:    "Djava Secure Node",
+			Text:    h.cfg.ServerName,
 			IconURL: h.cfg.LogoURL,
 		},
 		Timestamp: time.Now().Format(time.RFC3339),

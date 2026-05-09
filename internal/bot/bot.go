@@ -43,7 +43,6 @@ func New(cfg *config.Config, db *sql.DB) (*Bot, error) {
 		userHandler: user.NewHandler(cfg, db),
 	}
 
-	// Register event handlers
 	session.AddHandler(b.onReady)
 	session.AddHandler(b.onMessageCreate)
 	session.AddHandler(b.onInteractionCreate)
@@ -61,7 +60,7 @@ func (b *Bot) Stop() {
 	b.session.Close()
 }
 
-// Tag mengembalikan tag bot (Username#Discriminator)
+// Tag mengembalikan tag bot
 func (b *Bot) Tag() string {
 	if b.session.State.User != nil {
 		return b.session.State.User.String()
@@ -72,20 +71,20 @@ func (b *Bot) Tag() string {
 // ─────────────────────────────────────────
 //  EVENT: Ready
 // ─────────────────────────────────────────
-func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
-	log.Printf("✅ System Online: %s", r.User.String())
 
-	// Start SAMP status updater
+func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
+	log.Printf("✅ Bot online: %s", r.User.String())
+
 	b.startStatusUpdater()
+	b.registerSlashCommands()
 
 	// Verifikasi UCP panel persisten
 	cfg := config.LoadPanelConfig()
-
 	if cfg.UCPPanelChannelID != "" && cfg.UCPPanelMessageID != "" {
 		_, err1 := s.Channel(cfg.UCPPanelChannelID)
 		_, err2 := s.ChannelMessage(cfg.UCPPanelChannelID, cfg.UCPPanelMessageID)
 		if err1 != nil || err2 != nil {
-			log.Println("⚠️  UCP Panel tersimpan tidak ditemukan — spawn ulang dengan !panel")
+			log.Println("⚠️  UCP Panel tidak ditemukan — kirim ulang dengan !panel")
 			config.SavePanelConfig(config.PanelConfig{})
 		} else {
 			log.Printf("🟢  UCP Panel aktif: channel=%s msg=%s", cfg.UCPPanelChannelID, cfg.UCPPanelMessageID)
@@ -96,11 +95,11 @@ func (b *Bot) onReady(s *discordgo.Session, r *discordgo.Ready) {
 // ─────────────────────────────────────────
 //  EVENT: Message Create
 // ─────────────────────────────────────────
+
 func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.Bot {
 		return
 	}
-
 	if m.Content == "!panel" {
 		b.userHandler.HandlePanelCommand(s, m)
 	}
@@ -109,8 +108,11 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 // ─────────────────────────────────────────
 //  EVENT: Interaction Create
 // ─────────────────────────────────────────
+
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	switch i.Type {
+	case discordgo.InteractionApplicationCommand:
+		b.handleSlashCommand(s, i)
 	case discordgo.InteractionMessageComponent:
 		b.handleComponent(s, i)
 	case discordgo.InteractionModalSubmit:
@@ -119,11 +121,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 }
 
 func (b *Bot) handleComponent(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	data := i.MessageComponentData()
-	customID := data.CustomID
-
-	// User panel buttons
-	switch customID {
+	switch i.MessageComponentData().CustomID {
 	case "btn_register":
 		b.userHandler.HandleRegisterButton(s, i)
 	case "btn_refund_role":
@@ -138,11 +136,7 @@ func (b *Bot) handleComponent(s *discordgo.Session, i *discordgo.InteractionCrea
 }
 
 func (b *Bot) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	data := i.ModalSubmitData()
-	customID := data.CustomID
-
-	// User modals
-	switch customID {
+	switch i.ModalSubmitData().CustomID {
 	case "modal_register":
 		b.userHandler.HandleRegisterModal(s, i)
 	case "modal_reset_password":

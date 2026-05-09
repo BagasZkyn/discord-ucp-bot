@@ -9,11 +9,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// HandleResetPasswordButton menampilkan modal reset password (setelah cek akun)
+// HandleResetPasswordButton menampilkan modal reset password
 func (h *Handler) HandleResetPasswordButton(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	discordID := i.Member.User.ID
 
-	// Cek akun dulu sebelum tampilkan modal
 	var ucpName string
 	err := h.db.QueryRow(
 		"SELECT `username` FROM `ucp` WHERE `DiscordID` = ? LIMIT 1",
@@ -24,20 +23,19 @@ func (h *Handler) HandleResetPasswordButton(s *discordgo.Session, i *discordgo.I
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: utils.EphemeralResponse(
-				h.embed("「 ❌ 」Akun Tidak Ditemukan",
-					"> Discord ID Anda tidak terdaftar di sistem.\n> Silakan lakukan **REGISTRASI UCP** terlebih dahulu.",
+				h.embed("Akun Tidak Ditemukan",
+					"Discord kamu belum terdaftar. Silakan daftar UCP terlebih dahulu.",
 					utils.ColorError),
 			),
 		})
 		return
 	}
 
-	// Tampilkan modal
 	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
 			CustomID: "modal_reset_password",
-			Title:    "🔑 Reset Password Akun",
+			Title:    "Reset Password",
 			Components: []discordgo.MessageComponent{
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
@@ -45,7 +43,7 @@ func (h *Handler) HandleResetPasswordButton(s *discordgo.Session, i *discordgo.I
 							CustomID:    "input_new_password",
 							Label:       "Password Baru",
 							Style:       discordgo.TextInputShort,
-							Placeholder: "Masukkan password baru (min 6 karakter)",
+							Placeholder: "Minimal 6 karakter",
 							MinLength:   6,
 							MaxLength:   32,
 							Required:    true,
@@ -88,8 +86,8 @@ func (h *Handler) HandleResetPasswordModal(s *discordgo.Session, i *discordgo.In
 	if newPassword != confirmPassword {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Password Tidak Cocok",
-					"> Password baru dan konfirmasi tidak sama.\n> Silakan coba lagi.",
+				h.embed("Password Tidak Cocok",
+					"Password baru dan konfirmasi tidak sama. Coba lagi.",
 					utils.ColorError),
 			},
 		})
@@ -105,19 +103,17 @@ func (h *Handler) HandleResetPasswordModal(s *discordgo.Session, i *discordgo.In
 	if err != nil {
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Akun Tidak Ditemukan",
-					"> Discord ID Anda tidak terdaftar di sistem.",
+				h.embed("Akun Tidak Ditemukan",
+					"Discord kamu belum terdaftar.",
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Hash password dengan SHA256 + salt baru
 	salt := utils.GenerateSalt()
 	hashedPassword := utils.HashPassword(newPassword, salt)
 
-	// Update tabel ucp
 	_, err = h.db.Exec(
 		"UPDATE `ucp` SET `password` = ?, `salt` = ? WHERE `DiscordID` = ?",
 		hashedPassword, salt, discordID,
@@ -126,15 +122,15 @@ func (h *Handler) HandleResetPasswordModal(s *discordgo.Session, i *discordgo.In
 		log.Printf("❌ Gagal update password UCP: %v", err)
 		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 			Embeds: &[]*discordgo.MessageEmbed{
-				h.embed("「 ❌ 」Error Database",
-					"Terjadi kegagalan komunikasi dengan server database.",
+				h.embed("Gagal Update Password",
+					"Terjadi kesalahan pada database. Coba lagi nanti.",
 					utils.ColorError),
 			},
 		})
 		return
 	}
 
-	// Sync ke tabel players (best effort, tidak fatal jika gagal)
+	// Sync ke tabel players (best effort)
 	h.db.Exec(
 		"UPDATE `players` SET `password` = ?, `salt` = ? WHERE `ucp` = ?",
 		hashedPassword, salt, ucpName,
@@ -143,12 +139,12 @@ func (h *Handler) HandleResetPasswordModal(s *discordgo.Session, i *discordgo.In
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{
 			utils.BuildEmbed(h.cfg.LogoURL, h.cfg.ServerName,
-				"「 ✅ 」Password Berhasil Direset",
-				fmt.Sprintf("> Password akun **`%s`** telah berhasil diperbarui.\n> Gunakan password baru Anda saat login in-game.", ucpName),
+				"Password Berhasil Diubah",
+				fmt.Sprintf("Password akun **%s** sudah diperbarui. Gunakan password baru saat login.", ucpName),
 				utils.ColorSuccess,
 				[]*utils.EmbedField{
-					utils.Field("👤 UCP", fmt.Sprintf("`%s`", ucpName), true),
-					utils.Field("🔒 Status", "`PASSWORD UPDATED`", true),
+					utils.Field("Username", fmt.Sprintf("`%s`", ucpName), true),
+					utils.Field("Status", "Updated", true),
 				}),
 		},
 	})
