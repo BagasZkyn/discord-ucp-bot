@@ -7,6 +7,7 @@ type Config struct {
 	// Discord
 	DiscordToken string
 	UCPRoleID    string
+	AdminRoleID  string
 
 	// Server
 	ServerName string
@@ -29,6 +30,7 @@ func Load() *Config {
 	return &Config{
 		DiscordToken: getEnv("DISCORD_TOKEN", ""),
 		UCPRoleID:    getEnv("UCP_ROLE_ID", ""),
+		AdminRoleID:  getEnv("ADMIN_ROLE_ID", ""),
 
 		ServerName: getEnv("SERVER_NAME", "Djava Roleplay"),
 		LogoURL:    getEnv("LOGO_URL", "https://cdn.discordapp.com/attachments/1153557595928408163/1497964536093868174/Untitled_design.png"),
